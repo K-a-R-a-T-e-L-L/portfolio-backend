@@ -12,6 +12,7 @@ export const validationSchema = Joi.object({
 
     TELEGRAM_BOT_TOKEN: Joi.string().trim().required(),
     TELEGRAM_CHAT_ID: Joi.string().trim().required(),
+    TELEGRAM_PROXY_URL: Joi.string().uri({ scheme: ['http', 'https'] }).optional().empty(''),
 
     THROTTLE_TTL_MS: Joi.number().integer().min(1000).default(60000),
     THROTTLE_LIMIT: Joi.number().integer().min(1).default(5),

@@ -1,7 +1,8 @@
 ﻿import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { Repository } from "typeorm";
 
 import { ContactMethodEnum, CreateFeedbackDto } from "./dto/create-feedback.dto";
@@ -73,15 +74,43 @@ export class FeedbackService {
 📅 Дата: ${formatted}
 `.trim();
 
+    const telegramRequestConfig: AxiosRequestConfig = {
+      timeout: 10_000,
+    };
+
+    const proxyUrl = this.configService.get<string>("TELEGRAM_PROXY_URL");
+
+    if (proxyUrl) {
+      try {
+        telegramRequestConfig.httpsAgent = new HttpsProxyAgent(proxyUrl);
+        telegramRequestConfig.proxy = false;
+      } catch {
+        this.logger.warn(
+          "TELEGRAM_PROXY_URL is invalid. Telegram request will be sent without proxy.",
+        );
+      }
+    }
+
     try {
-      await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        chat_id: chatId,
-        text: message,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      });
+      await axios.post(
+        `https://api.telegram.org/bot${botToken}/sendMessage`,
+        {
+          chat_id: chatId,
+          text: message,
+          parse_mode: "HTML",
+          disable_web_page_preview: true,
+        },
+        telegramRequestConfig,
+      );
     } catch (error) {
-      this.logger.error("Failed to send feedback request to Telegram", error);
+      if (axios.isAxiosError(error)) {
+        this.logger.error(
+          `Failed to send feedback request to Telegram (status=${error.response?.status ?? "unknown"}, code=${error.code ?? "unknown"})`,
+        );
+        return;
+      }
+
+      this.logger.error("Failed to send feedback request to Telegram");
     }
   }
 
